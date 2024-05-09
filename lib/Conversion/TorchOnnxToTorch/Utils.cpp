@@ -78,6 +78,10 @@ mlir::torch::onnx_c::onnxDtypeIntToTorchDtypeInt(int64_t dtypeIntOnnx) {
       return 0; // uint8
     case 3:
       return 1; // int8
+    case 4:
+      return 27; // uint16
+    case 5:
+      return 2; // int16
     case 6:
       return 3; // int32
     case 7:
@@ -88,8 +92,24 @@ mlir::torch::onnx_c::onnxDtypeIntToTorchDtypeInt(int64_t dtypeIntOnnx) {
       return 5; // half
     case 11:
       return 7; // double
+    case 12:
+      return 28; // uint32
+    case 13:
+      return 29; // uint64
+    case 14:
+      return 9; // complex64
+    case 15:
+      return 10; // complex128
     case 16:
       return 15; // bfloat16
+    case 17:
+      return 24; // float8_e4m3fn
+    case 18:
+      return 26; // float8_e4m3fnuz
+    case 19:
+      return 23; // float8_e5m2
+    case 20:
+      return 25; // float8_e5m2fnuz
     default:
       return std::nullopt; // No dtype
     }

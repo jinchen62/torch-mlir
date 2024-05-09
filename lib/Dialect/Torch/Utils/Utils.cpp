@@ -95,38 +95,46 @@ FailureOr<Type>
 Torch::getTypeForScalarType(MLIRContext *context,
                             torch_upstream::ScalarType dtypeInt) {
   switch (dtypeInt) {
-  case torch_upstream::ScalarType::Float:
-    return Float32Type::get(context);
-  case torch_upstream::ScalarType::Double:
-    return Float64Type::get(context);
-  case torch_upstream::ScalarType::Long:
-    return IntegerType::get(context, 64, mlir::IntegerType::Signed);
-  case torch_upstream::ScalarType::Int:
-    return IntegerType::get(context, 32, mlir::IntegerType::Signed);
-  case torch_upstream::ScalarType::Short:
-    return IntegerType::get(context, 16, mlir::IntegerType::Signed);
-  case torch_upstream::ScalarType::Bool:
-    return IntegerType::get(context, 1);
-  case torch_upstream::ScalarType::BFloat16:
-    return mlir::FloatType::getBF16(context);
-  case torch_upstream::ScalarType::Half:
-    return mlir::FloatType::getF16(context);
   case torch_upstream::ScalarType::Byte:
-    return mlir::IntegerType::get(context, 8, mlir::IntegerType::Unsigned);
+    return mlir::IntegerType::get(context, 8, mlir::IntegerType::Unsigned); // 0
   case torch_upstream::ScalarType::Char:
-    return mlir::IntegerType::get(context, 8, mlir::IntegerType::Signed);
-  case torch_upstream::ScalarType::QUInt8:
-    return QUInt8Type::get(context);
-  case torch_upstream::ScalarType::QInt8:
-    return QInt8Type::get(context);
-  case torch_upstream::ScalarType::QInt32:
-    return QInt32Type::get(context);
+    return mlir::IntegerType::get(context, 8, mlir::IntegerType::Signed); // 1
+  case torch_upstream::ScalarType::Short:
+    return IntegerType::get(context, 16, mlir::IntegerType::Signed); // 2
+  case torch_upstream::ScalarType::Int:
+    return IntegerType::get(context, 32, mlir::IntegerType::Signed); // 3
+  case torch_upstream::ScalarType::Long:
+    return IntegerType::get(context, 64, mlir::IntegerType::Signed); // 4
+  case torch_upstream::ScalarType::Half:
+    return mlir::FloatType::getF16(context); // 5
+  case torch_upstream::ScalarType::Float:
+    return Float32Type::get(context); // 6
+  case torch_upstream::ScalarType::Double:
+    return Float64Type::get(context); // 7
   case torch_upstream::ScalarType::ComplexHalf:
-    return mlir::ComplexType::get(Float16Type::get(context));
+    return mlir::ComplexType::get(Float16Type::get(context)); // 8
   case torch_upstream::ScalarType::ComplexFloat:
-    return mlir::ComplexType::get(Float32Type::get(context));
+    return mlir::ComplexType::get(Float32Type::get(context)); // 9
   case torch_upstream::ScalarType::ComplexDouble:
-    return mlir::ComplexType::get(Float64Type::get(context));
+    return mlir::ComplexType::get(Float64Type::get(context)); // 10
+  case torch_upstream::ScalarType::Bool:
+    return IntegerType::get(context, 1); // 11
+  case torch_upstream::ScalarType::QInt8:
+    return QInt8Type::get(context); // 12
+  case torch_upstream::ScalarType::QUInt8:
+    return QUInt8Type::get(context); // 13
+  case torch_upstream::ScalarType::QInt32:
+    return QInt32Type::get(context); // 14
+  case torch_upstream::ScalarType::BFloat16:
+    return mlir::FloatType::getBF16(context); // 15
+  case torch_upstream::ScalarType::Float8_e5m2:
+    return Float8E5M2Type::get(context); // 23
+  case torch_upstream::ScalarType::Float8_e4m3fn:
+    return Float8E4M3FNType::get(context); // 24
+  case torch_upstream::ScalarType::Float8_e5m2fnuz:
+    return Float8E5M2FNUZType::get(context); // 25
+  case torch_upstream::ScalarType::Float8_e4m3fnuz:
+    return Float8E4M3FNUZType::get(context); // 26
   case torch_upstream::ScalarType::Undefined:
     return failure();
   default:
