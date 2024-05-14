@@ -2789,16 +2789,23 @@ static Value BilinearInterpolate(OpBuilder &b,
   matchPattern(op.getAlignCorners(), m_TorchConstantBool(&alignCornersBool));
 
   Value yProj, xProj;
+
+  Value inputHFP = b.create<arith::SIToFPOp>(loc, b.getF32Type(), inputSizeH); // length_original
+  Value outputSizeHFP =
+      b.create<arith::SIToFPOp>(loc, b.getF32Type(), outputSizeH); // length_resized
+  Value yOutInt = b.create<arith::IndexCastOp>(loc, b.getI64Type(), yOut);
+  Value yOutFP = b.create<arith::SIToFPOp>(loc, b.getF32Type(), yOutInt); // y_resized
+
+  Value inputWFP = b.create<arith::SIToFPOp>(loc, b.getF32Type(), inputSizeW); // length_original
+  Value outputSizeWFP =
+      b.create<arith::SIToFPOp>(loc, b.getF32Type(), outputSizeW); // length_resized
+  Value xOutInt = b.create<arith::IndexCastOp>(loc, b.getI64Type(), xOut);
+  Value xOutFP = b.create<arith::SIToFPOp>(loc, b.getF32Type(), xOutInt); // x_resized
   if (alignCornersBool) {
     // x_original = x_resized * (length_original - 1) / (length_resized - 1)
-    Value inputHFP = b.create<arith::SIToFPOp>(loc, b.getF32Type(), inputSizeH);
-    Value outputSizeHFP =
-        b.create<arith::SIToFPOp>(loc, b.getF32Type(), outputSizeH);
-    Value yOutInt = b.create<arith::IndexCastOp>(loc, b.getI64Type(), yOut);
-    Value yOutFP = b.create<arith::SIToFPOp>(loc, b.getF32Type(), yOutInt);
-    Value inputHSubOne = b.create<arith::SubFOp>(loc, inputHFP, cstOneFloat);
+    Value inputHSubOne = b.create<arith::SubFOp>(loc, inputHFP, cstOneFloat); // (length_original - 1)
     Value outputSizeHSubOne =
-        b.create<arith::SubFOp>(loc, outputSizeHFP, cstOneFloat);
+        b.create<arith::SubFOp>(loc, outputSizeHFP, cstOneFloat); // (length_resized - 1)
     Value hScale =
         b.create<arith::DivFOp>(loc, inputHSubOne, outputSizeHSubOne);
     Value yProjBeforeClamp = b.create<arith::MulFOp>(loc, yOutFP, hScale);
@@ -2807,11 +2814,6 @@ static Value BilinearInterpolate(OpBuilder &b,
         b.create<arith::SubFOp>(loc, outputSizeHFP, cstOneEps);
     yProj = b.create<arith::MinimumFOp>(loc, outputSizeHSubOneEps, yMax);
 
-    Value inputWFP = b.create<arith::SIToFPOp>(loc, b.getF32Type(), inputSizeW);
-    Value outputSizeWFP =
-        b.create<arith::SIToFPOp>(loc, b.getF32Type(), outputSizeW);
-    Value xOutInt = b.create<arith::IndexCastOp>(loc, b.getI64Type(), xOut);
-    Value xOutFP = b.create<arith::SIToFPOp>(loc, b.getF32Type(), xOutInt);
     Value inputWSubOne = b.create<arith::SubFOp>(loc, inputWFP, cstOneFloat);
     Value outputSizeWSubOne =
         b.create<arith::SubFOp>(loc, outputSizeWFP, cstOneFloat);
@@ -2823,33 +2825,42 @@ static Value BilinearInterpolate(OpBuilder &b,
         b.create<arith::SubFOp>(loc, outputSizeWFP, cstOneEps);
     xProj = b.create<arith::MinimumFOp>(loc, outputSizeWSubOneEps, xMax);
   } else {
-    // y_original = (y_resized + 0.5) / scale - 0.5
-    Value inputHFP = b.create<arith::SIToFPOp>(loc, b.getF32Type(), inputSizeH);
-    Value outputSizeHFP =
-        b.create<arith::SIToFPOp>(loc, b.getF32Type(), outputSizeH);
-    Value hScale = b.create<arith::DivFOp>(loc, outputSizeHFP, inputHFP);
-    Value yOutInt = b.create<arith::IndexCastOp>(loc, b.getI64Type(), yOut);
-    Value yOutFP = b.create<arith::SIToFPOp>(loc, b.getF32Type(), yOutInt);
-    Value yPlusHalf = b.create<arith::AddFOp>(loc, yOutFP, cstHalf);
-    Value yDivScale = b.create<arith::DivFOp>(loc, yPlusHalf, hScale);
-    Value ySubHalf = b.create<arith::SubFOp>(loc, yDivScale, cstHalf);
+    // array([[[[1., 2., 3., 4.],
+    //         [5., 6., 7., 8.]]]], dtype=float32)
+    // array([1. , 1. , 0.6, 0.6], dtype=float32)
+    // array([[[[2.6666665, 4.333333 ]]]], dtype=float32)
+
+    // half_pixel
+    // x_original = (x_resized + 0.5) / scale - 0.5
+    Value yPlusHalf = b.create<arith::AddFOp>(loc, yOutFP, cstHalf); // (y_resized + 0.5)
+    Value hScale = b.create<arith::DivFOp>(loc, inputHFP, outputSizeHFP); // 1 / scale
+    Value yMulScale = b.create<arith::MulFOp>(loc, yPlusHalf, hScale);
+    Value ySubHalf = b.create<arith::SubFOp>(loc, yMulScale, cstHalf);
     Value yMax = b.create<arith::MaximumFOp>(loc, ySubHalf, zero);
     Value inputHSubOne = b.create<arith::SubFOp>(loc, inputHFP, cstOneEps);
     yProj = b.create<arith::MinimumFOp>(loc, yMax, inputHSubOne);
 
-    Value inputWFP = b.create<arith::SIToFPOp>(loc, b.getF32Type(), inputSizeW);
-    Value outputSizeWFP =
-        b.create<arith::SIToFPOp>(loc, b.getF32Type(), outputSizeW);
-    Value wScale = b.create<arith::DivFOp>(loc, outputSizeWFP, inputWFP);
-    Value xOutInt = b.create<arith::IndexCastOp>(loc, b.getI64Type(), xOut);
-    Value xOutFP = b.create<arith::SIToFPOp>(loc, b.getF32Type(), xOutInt);
-    Value xPlusHalf = b.create<arith::AddFOp>(loc, xOutFP, cstHalf);
-    Value xDivScale = b.create<arith::DivFOp>(loc, xPlusHalf, wScale);
-    Value xSubHalf = b.create<arith::SubFOp>(loc, xDivScale, cstHalf);
-    // clamp
+    Value xPlusHalf = b.create<arith::AddFOp>(loc, xOutFP, cstHalf); // (x_resized + 0.5)
+    Value wScale = b.create<arith::DivFOp>(loc, inputWFP, outputSizeWFP); // 1 / scale
+    Value xMulScale = b.create<arith::MulFOp>(loc, xPlusHalf, wScale);
+    Value xSubHalf = b.create<arith::SubFOp>(loc, xMulScale, cstHalf);
     Value xMax = b.create<arith::MaximumFOp>(loc, xSubHalf, zero);
     Value inputWSubOne = b.create<arith::SubFOp>(loc, inputWFP, cstOneEps);
     xProj = b.create<arith::MinimumFOp>(loc, xMax, inputWSubOne);
+
+    // asymmetric
+    // x_original = x_resized / scale
+    // Value hScale = b.create<arith::DivFOp>(loc, inputHFP, outputSizeHFP); // 1 / scale
+    // Value yMulScale = b.create<arith::MulFOp>(loc, yOutFP, hScale);
+    // Value yMax = b.create<arith::MaximumFOp>(loc, yMulScale, zero);
+    // Value inputHSubOne = b.create<arith::SubFOp>(loc, inputHFP, cstOneEps);
+    // yProj = b.create<arith::MinimumFOp>(loc, yMax, inputHSubOne);
+
+    // Value wScale = b.create<arith::DivFOp>(loc, inputWFP, outputSizeWFP); // 1 / scale
+    // Value xMulScale = b.create<arith::MulFOp>(loc, xOutFP, wScale);
+    // Value xMax = b.create<arith::MaximumFOp>(loc, xMulScale, zero);
+    // Value inputWSubOne = b.create<arith::SubFOp>(loc, inputWFP, cstOneEps);
+    // xProj = b.create<arith::MinimumFOp>(loc, xMax, inputWSubOne);
   }
   Value yLow = b.create<math::FloorOp>(loc, yProj);
   Value yProjPlusOne = b.create<arith::AddFOp>(loc, cstOneFloat, yProj);
@@ -2957,6 +2968,7 @@ public:
 
     SmallVector<Value, 2> outputSizeIntValues;
 
+    llvm::outs() << "!!!!!!!!!!!!!!\n";
     if (!op.getScaleFactor().getType().isa<Torch::NoneType>()) {
       SmallVector<Value, 2> ScaleFactorTorchFloat;
       if (!getListConstructElements(op.getScaleFactor(), ScaleFactorTorchFloat))
@@ -2996,6 +3008,10 @@ public:
         return rewriter.notifyMatchFailure(
             op, "unimplemented: the output_size is not constructed from "
                 "ListConstruct");
+      llvm::outs() << outputSizeTorchInt.size() << "\n";
+      for (auto i : outputSizeTorchInt) {
+        i.dump();
+      }
       outputSizeIntValues = getTypeConvertedValues(
           rewriter, loc, getTypeConverter(), outputSizeTorchInt);
     }
